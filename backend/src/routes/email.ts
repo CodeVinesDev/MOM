@@ -1,13 +1,17 @@
-import { Router, Request, Response } from "express";
+import { Router, Response } from "express";
 import Meeting from "../models/Meeting";
 import ActionItem from "../models/ActionItem";
 import { sendMOM } from "../services/emailService";
+import { authMiddleware, AuthRequest } from "../middleware/auth";
 
 const router = Router();
+router.use(authMiddleware);
 
-// POST /api/email/send/:meetingId
-router.post("/send/:meetingId", async (req: Request, res: Response) => {
-  const meeting = await Meeting.findById(req.params.meetingId);
+router.post("/send/:meetingId", async (req: AuthRequest, res: Response) => {
+  const meeting = await Meeting.findOne({
+    _id: req.params.meetingId,
+    owner: req.user!.id,
+  });
   if (!meeting) return res.status(404).json({ error: "Meeting not found" });
 
   const actions = await ActionItem.find({ meetingId: meeting._id });

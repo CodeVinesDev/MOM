@@ -15,18 +15,25 @@ export interface IMeeting extends Document {
   actionItems: mongoose.Types.ObjectId[];
   momSentAt?: Date;
   emailStatus: "pending" | "sent" | "failed";
-  tags: string[]; // Bonus feature 2
+  tags: string[];
+  owner: mongoose.Types.ObjectId;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 const MeetingSchema = new Schema<IMeeting>(
   {
     title: { type: String, required: true },
     date: { type: Date, required: true },
-    participants: [{ name: String, email: String }],
+    participants: [
+      {
+        name: { type: String, required: true },
+        email: { type: String, required: true },
+      },
+    ],
     rawTranscript: { type: String, required: true },
     summary: { type: String, default: "" },
-    decisions: [String],
+    decisions: { type: [String], default: [] },
     actionItems: [{ type: Schema.Types.ObjectId, ref: "ActionItem" }],
     momSentAt: Date,
     emailStatus: {
@@ -34,7 +41,8 @@ const MeetingSchema = new Schema<IMeeting>(
       enum: ["pending", "sent", "failed"],
       default: "pending",
     },
-    tags: [String],
+    tags: { type: [String], default: [] },
+    owner: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true },
 );
