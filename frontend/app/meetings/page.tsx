@@ -4,12 +4,13 @@ import { useRouter } from "next/navigation";
 import { authFetch } from "@/lib/api";
 import { getToken, clearToken } from "@/lib/auth";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useToast } from "@/components/useToast";
 
 export default function MeetingsPage() {
   const router = useRouter();
   const [meetings, setMeetings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!getToken()) {
@@ -20,7 +21,7 @@ export default function MeetingsPage() {
     authFetch<any[]>("/api/meetings")
       .then(setMeetings)
       .catch((err) => {
-        setError(err.message);
+        showToast(err.message, "error");
         if (err.message.toLowerCase().includes("unauthorized")) {
           clearToken();
           router.push("/login");
@@ -53,10 +54,6 @@ export default function MeetingsPage() {
           <div className="grid gap-4">
             <div className="h-28 rounded-[1.75rem] bg-slate-100" />
             <div className="h-28 rounded-[1.75rem] bg-slate-100" />
-          </div>
-        ) : error ? (
-          <div className="rounded-[1.75rem] bg-white p-8 shadow-xl text-rose-600">
-            {error}
           </div>
         ) : meetings.length === 0 ? (
           <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-white p-8 text-slate-600">

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { authFetch } from "@/lib/api";
 import { clearToken, getToken } from "@/lib/auth";
 import { Button } from "@/components/Button";
+import { useToast } from "@/components/useToast";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Enter your name"),
@@ -15,12 +16,10 @@ const profileSchema = z.object({
 });
 
 type ProfileForm = z.infer<typeof profileSchema>;
-
 export default function SettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const {
     register,
@@ -41,7 +40,7 @@ export default function SettingsPage() {
         setValue("email", profile.email);
       })
       .catch((err) => {
-        setError(err.message);
+        showToast((err as Error).message, "error");
       })
       .finally(() => setLoading(false));
   }, [router, setValue]);
@@ -55,13 +54,11 @@ export default function SettingsPage() {
           body: JSON.stringify(values),
         },
       );
-      setMessage("Profile updated successfully.");
-      setError(null);
+      showToast("Profile updated successfully.", "success");
       setValue("name", updated.name);
       setValue("email", updated.email);
     } catch (err) {
-      setError((err as Error).message);
-      setMessage(null);
+      showToast((err as Error).message, "error");
     }
   }
 
@@ -124,8 +121,9 @@ export default function SettingsPage() {
             )}
           </label>
 
-          {error && <p className="text-sm text-rose-600">{error}</p>}
-          {message && <p className="text-sm text-emerald-600">{message}</p>}
+          <p className="text-sm text-slate-500">
+            Your profile changes will be saved and applied immediately.
+          </p>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
             <Button type="submit" disabled={isSubmitting}>

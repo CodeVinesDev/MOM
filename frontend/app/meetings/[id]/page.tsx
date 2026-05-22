@@ -6,7 +6,7 @@ import { getToken } from "@/lib/auth";
 import { ActionItemCard } from "@/components/ActionItemCard";
 import { EmailModal } from "@/components/EmailModal";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Toast } from "@/components/Toast";
+import { useToast } from "@/components/useToast";
 
 interface ActionItem {
   _id: string;
@@ -35,10 +35,7 @@ export default function MeetingPage() {
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [sending, setSending] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [toast, setToast] = useState<{
-    message: string;
-    variant: "success" | "error" | "info";
-  } | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!getToken()) {
@@ -48,7 +45,7 @@ export default function MeetingPage() {
 
     authFetch<Meeting>(`/api/meetings/${id}`)
       .then(setMeeting)
-      .catch((err) => setToast({ message: err.message, variant: "error" }));
+      .catch((err) => showToast(err.message, "error"));
   }, [id, router]);
 
   const sendEmail = async () => {
@@ -64,10 +61,10 @@ export default function MeetingPage() {
             }
           : current,
       );
-      setToast({ message: "MOM email sent successfully.", variant: "success" });
+      showToast("MOM email sent successfully.", "success");
       setIsModalOpen(false);
     } catch (err) {
-      setToast({ message: (err as Error).message, variant: "error" });
+      showToast((err as Error).message, "error");
     } finally {
       setSending(false);
     }
@@ -90,7 +87,7 @@ export default function MeetingPage() {
           : current,
       );
     } catch (err) {
-      setToast({ message: (err as Error).message, variant: "error" });
+      showToast((err as Error).message, "error");
     }
   };
 
@@ -184,13 +181,7 @@ export default function MeetingPage() {
         sending={sending}
       />
 
-      {toast && (
-        <Toast
-          message={toast.message}
-          variant={toast.variant}
-          open={Boolean(toast)}
-        />
-      )}
+      {/* Shared toast provider renders notifications globally */}
     </main>
   );
 }

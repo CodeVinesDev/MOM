@@ -7,7 +7,7 @@ import { z } from "zod";
 import { setToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/Button";
-import { useState } from "react";
+import { useToast } from "@/components/useToast";
 
 const signupSchema = z.object({
   name: z.string().min(2, "Enter your name"),
@@ -24,7 +24,7 @@ export default function SignupPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<SignupForm>({ resolver: zodResolver(signupSchema) });
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   async function onSubmit(values: SignupForm) {
     try {
@@ -33,9 +33,10 @@ export default function SignupPage() {
         body: JSON.stringify(values),
       });
       setToken(response.token);
+      showToast("Welcome aboard! Your account is ready.", "success");
       router.push("/dashboard");
     } catch (err) {
-      setError((err as Error).message);
+      showToast((err as Error).message, "error");
     }
   }
 
@@ -90,8 +91,6 @@ export default function SignupPage() {
               <p className="text-sm text-rose-600">{errors.password.message}</p>
             )}
           </label>
-
-          {error && <p className="text-sm text-rose-600">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? "Creating account…" : "Create account"}

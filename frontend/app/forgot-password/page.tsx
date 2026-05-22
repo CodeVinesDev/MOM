@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/Button";
-import { useState } from "react";
+import { useToast } from "@/components/useToast";
 import Link from "next/link";
 
 const forgotSchema = z.object({
@@ -19,8 +19,7 @@ export default function ForgotPasswordPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ForgotForm>({ resolver: zodResolver(forgotSchema) });
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   async function onSubmit(values: ForgotForm) {
     try {
@@ -28,11 +27,9 @@ export default function ForgotPasswordPage() {
         method: "POST",
         body: JSON.stringify(values),
       });
-      setMessage("If that email exists, we sent reset instructions.");
-      setError(null);
+      showToast("If that email exists, reset instructions have been sent.", "success");
     } catch (err) {
-      setError((err as Error).message);
-      setMessage(null);
+      showToast((err as Error).message, "error");
     }
   }
 
@@ -62,8 +59,9 @@ export default function ForgotPasswordPage() {
             )}
           </label>
 
-          {error && <p className="text-sm text-rose-600">{error}</p>}
-          {message && <p className="text-sm text-emerald-600">{message}</p>}
+          <p className="text-sm text-slate-500">
+            We will notify you with next steps if your email exists in our system.
+          </p>
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? "Sending…" : "Send reset link"}

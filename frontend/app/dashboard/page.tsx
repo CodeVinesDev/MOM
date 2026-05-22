@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "@/components/useToast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +9,6 @@ import { authFetch } from "@/lib/api";
 import { clearToken, getToken } from "@/lib/auth";
 import { Button } from "@/components/Button";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Toast } from "@/components/Toast";
 
 const formSchema = z.object({
   title: z.string().min(3, "Meeting title is required"),
@@ -26,10 +26,7 @@ export default function DashboardPage() {
   const [meetings, setMeetings] = useState<any[]>([]);
   const [stats, setStats] = useState({ open: 0, inProgress: 0, done: 0 });
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{
-    message: string;
-    variant: "success" | "error" | "info";
-  } | null>(null);
+  const { showToast } = useToast();
 
   const {
     register,
@@ -68,7 +65,7 @@ export default function DashboardPage() {
           router.push("/login");
           return;
         }
-        setToast({ message: (err as Error).message, variant: "error" });
+        showToast((err as Error).message, "error");
       } finally {
         setLoading(false);
       }
@@ -81,10 +78,7 @@ export default function DashboardPage() {
 
   const onSubmit = async (values: FormValues) => {
     if (!values.transcript.trim()) {
-      setToast({
-        message: "Please enter a transcript before generating MOM.",
-        variant: "error",
-      });
+      showToast("Please enter a transcript before generating MOM.", "error");
       return;
     }
 
@@ -111,11 +105,11 @@ export default function DashboardPage() {
       const payload = await response.json();
       if (!response.ok)
         throw new Error(payload?.error || "Unable to generate meeting");
-      setToast({ message: "MOM generated successfully.", variant: "success" });
+      showToast("MOM generated successfully.", "success");
       router.push(`/meetings/${payload.meeting._id}`);
       reset();
     } catch (err) {
-      setToast({ message: (err as Error).message, variant: "error" });
+      showToast((err as Error).message, "error");
     }
   };
 
@@ -304,13 +298,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {toast ? (
-        <Toast
-          message={toast.message}
-          variant={toast.variant}
-          open={Boolean(toast)}
-        />
-      ) : null}
+      {/* Toasts are rendered by the shared ToastProvider */}
     </main>
   );
 }

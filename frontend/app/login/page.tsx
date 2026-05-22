@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { setToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/Button";
+import { useToast } from "@/components/useToast";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -23,7 +23,7 @@ export default function LoginPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   async function onSubmit(values: LoginForm) {
     try {
@@ -32,9 +32,10 @@ export default function LoginPage() {
         body: JSON.stringify(values),
       });
       setToken(response.token);
+      showToast("Logged in successfully.", "success");
       router.push("/dashboard");
     } catch (err) {
-      setError((err as Error).message);
+      showToast((err as Error).message, "error");
     }
   }
 
@@ -76,8 +77,6 @@ export default function LoginPage() {
               <p className="text-sm text-rose-600">{errors.password.message}</p>
             )}
           </label>
-
-          {error && <p className="text-sm text-rose-600">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? "Signing in…" : "Sign in"}

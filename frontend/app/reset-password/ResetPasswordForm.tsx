@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/Button";
-import { useState } from "react";
+import { useToast } from "@/components/useToast";
 
 const resetSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -18,8 +18,7 @@ export default function ResetPasswordForm() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get("token") || "";
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
   const {
     register,
     handleSubmit,
@@ -32,11 +31,10 @@ export default function ResetPasswordForm() {
         method: "POST",
         body: JSON.stringify({ token, password: values.password }),
       });
-      setMessage("Password reset successfully. Redirecting to login...");
+      showToast("Password reset successful. Redirecting to login...", "success");
       setTimeout(() => router.push("/login"), 1500);
     } catch (err) {
-      setError((err as Error).message);
-      setMessage(null);
+      showToast((err as Error).message, "error");
     }
   }
 
@@ -55,8 +53,9 @@ export default function ResetPasswordForm() {
         )}
       </label>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
-      {message && <p className="text-sm text-emerald-600">{message}</p>}
+      <p className="text-sm text-slate-500">
+        Create a strong password to keep your account secure.
+      </p>
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? "Updating…" : "Reset password"}

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { authFetch } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
+import { useToast } from "@/components/useToast";
 
 interface Stats {
   total: number;
@@ -13,23 +14,15 @@ interface Stats {
 
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     authFetch<Stats>("/api/actions/stats")
       .then(setStats)
-      .catch((err) => setError(err.message));
+      .catch((err) => {
+        showToast(err.message, "error");
+      });
   }, []);
-
-  if (error) {
-    return (
-      <main className="min-h-screen px-6 py-10 text-slate-950 sm:px-10 lg:px-16">
-        <div className="mx-auto max-w-5xl rounded-[2rem] bg-white p-10 shadow-xl">
-          <p className="text-sm text-rose-600">{error}</p>
-        </div>
-      </main>
-    );
-  }
 
   if (!stats) {
     return (
