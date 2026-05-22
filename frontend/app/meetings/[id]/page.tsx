@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { authFetch } from "@/lib/api";
+import { getToken } from "@/lib/auth";
+import { ActionItemCard } from "@/components/ActionItemCard";
+import { EmailModal } from "@/components/EmailModal";
+import { StatusBadge } from "@/components/StatusBadge";
+import { useToast } from "@/components/useToast";
 
 interface ActionItem {
   _id: string;
@@ -10,6 +16,7 @@ interface ActionItem {
   dueDate?: string;
   status: string;
 }
+
 interface Meeting {
   _id: string;
   title: string;
@@ -24,156 +31,157 @@ interface Meeting {
 
 export default function MeetingPage() {
   const { id } = useParams();
+  const router = useRouter();
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${id}`)
-      .then((r) => r.json())
-      .then(setMeeting);
-  }, [id]);
+    if (!getToken()) {
+      router.push("/login");
+      return;
+    }
 
-  async function sendEmail() {
+    authFetch<Meeting>(`/api/meetings/${id}`)
+      .then(setMeeting)
+      .catch((err) => showToast(err.message, "error"));
+  }, [id, router]);
+
+  const sendEmail = async () => {
     setSending(true);
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/email/send/${id}`, {
-      method: "POST",
-    });
-    setSending(false);
-    setSent(true);
-    setMeeting((m) => (m ? { ...m, emailStatus: "sent" } : m));
-  }
+    try {
+      await authFetch(`/api/email/send/${id}`, { method: "POST" });
+      setMeeting((current) =>
+        current
+          ? {
+              ...current,
+              emailStatus: "sent",
+              momSentAt: new Date().toISOString(),
+            }
+          : current,
+      );
+      showToast("MOM email sent successfully.", "success");
+      setIsModalOpen(false);
+    } catch (err) {
+      showToast((err as Error).message, "error");
+    } finally {
+      setSending(false);
+    }
+  };
 
-  async function updateActionStatus(actionId: string, status: string) {
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/actions/${actionId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    setMeeting((m) =>
-      m
-        ? {
-            ...m,
-            actionItems: m.actionItems.map((a) =>
-              a._id === actionId ? { ...a, status } : a,
-            ),
-          }
-        : m,
+  const updateActionStatus = async (actionId: string, status: string) => {
+    try {
+      await authFetch(`/api/actions/${actionId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setMeeting((current) =>
+        current
+          ? {
+              ...current,
+              actionItems: current.actionItems.map((item) =>
+                item._id === actionId ? { ...item, status } : item,
+              ),
+            }
+          : current,
+      );
+    } catch (err) {
+      showToast((err as Error).message, "error");
+    }
+  };
+
+  if (!meeting) {
+    return (
+      <main className="min-h-screen px-6 py-10 text-slate-950 sm:px-10 lg:px-16">
+        <div className="mx-auto max-w-4xl rounded-[2rem] bg-white p-10 shadow-xl">
+          Loading meeting details…
+        </div>
+      </main>
     );
   }
 
-  if (!meeting) return <p style={{ padding: 40 }}>Loading…</p>;
-
   return (
-    <main style={{ maxWidth: 720, margin: "40px auto", padding: "0 24px" }}>
-      <h1 style={{ fontSize: 26, fontWeight: 600 }}>{meeting.title}</h1>
-      <p style={{ color: "#888", marginBottom: 24 }}>
-        {new Date(meeting.date).toLocaleDateString()} ·{" "}
-        {meeting.participants.map((p) => p.name).join(", ")}
-      </p>
+    <main className="min-h-screen px-6 py-10 text-slate-950 sm:px-10 lg:px-16">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <section className="rounded-[2rem] bg-white p-8 shadow-xl">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold">{meeting.title}</h1>
+              <p className="mt-2 text-sm text-slate-600">
+                {new Date(meeting.date).toLocaleDateString()}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
+                {meeting.participants.map((participant) => (
+                  <span
+                    key={participant.email}
+                    className="rounded-full bg-slate-100 px-3 py-1"
+                  >
+                    {participant.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <StatusBadge status={meeting.emailStatus} />
+          </div>
 
-      <section style={card}>
-        <h2 style={sectionHead}>Summary</h2>
-        <p style={{ lineHeight: 1.7 }}>{meeting.summary}</p>
-      </section>
+          <div className="mt-8 grid gap-6">
+            <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-6">
+              <h2 className="text-xl font-semibold">Summary</h2>
+              <p className="mt-4 text-slate-700">{meeting.summary}</p>
+            </div>
 
-      <section style={card}>
-        <h2 style={sectionHead}>Key decisions</h2>
-        <ul style={{ paddingLeft: 20 }}>
-          {meeting.decisions.map((d, i) => (
-            <li key={i} style={{ marginBottom: 6 }}>
-              {d}
-            </li>
-          ))}
-        </ul>
-      </section>
+            <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-6">
+              <h2 className="text-xl font-semibold">Decisions</h2>
+              <ul className="mt-4 list-disc space-y-3 pl-5 text-slate-700">
+                {meeting.decisions.map((decision, index) => (
+                  <li key={index}>{decision}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
 
-      <section style={card}>
-        <h2 style={sectionHead}>Action items</h2>
-        {meeting.actionItems.map((a) => (
-          <div
-            key={a._id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "10px 0",
-              borderBottom: "1px solid #eee",
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontWeight: 500 }}>{a.task}</p>
-              <p style={{ margin: 0, fontSize: 13, color: "#888" }}>
-                {a.assignee}{" "}
-                {a.dueDate
-                  ? `· Due ${new Date(a.dueDate).toLocaleDateString()}`
-                  : ""}
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Action items</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Track who owns each task and update progress.
               </p>
             </div>
-            <select
-              value={a.status}
-              onChange={(e) => updateActionStatus(a._id, e.target.value)}
-              style={{
-                padding: "4px 8px",
-                borderRadius: 6,
-                border: "1px solid #ddd",
-                fontSize: 13,
-              }}
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
             >
-              <option value="open">Open</option>
-              <option value="in_progress">In progress</option>
-              <option value="done">Done</option>
-            </select>
+              Send MOM email
+            </button>
           </div>
-        ))}
-      </section>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          marginTop: 24,
-        }}
-      >
-        <button
-          onClick={sendEmail}
-          disabled={sending || meeting.emailStatus === "sent"}
-          style={{
-            padding: "12px 28px",
-            borderRadius: 8,
-            border: "none",
-            background: meeting.emailStatus === "sent" ? "#22c55e" : "#0066cc",
-            color: "#fff",
-            fontSize: 15,
-            cursor: "pointer",
-          }}
-        >
-          {meeting.emailStatus === "sent"
-            ? "✓ MOM sent"
-            : sending
-              ? "Sending…"
-              : "Send MOM to all participants"}
-        </button>
-        {meeting.momSentAt && (
-          <span style={{ fontSize: 13, color: "#888" }}>
-            Sent {new Date(meeting.momSentAt).toLocaleString()}
-          </span>
-        )}
+          <div className="mt-6 grid gap-4">
+            {meeting.actionItems.map((action) => (
+              <ActionItemCard
+                key={action._id}
+                task={action.task}
+                assignee={action.assignee}
+                dueDate={action.dueDate}
+                status={action.status}
+                onStatusChange={(status) =>
+                  updateActionStatus(action._id, status)
+                }
+              />
+            ))}
+          </div>
+        </section>
       </div>
+
+      <EmailModal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={sendEmail}
+        participants={meeting.participants}
+        sending={sending}
+      />
+
+      {/* Shared toast provider renders notifications globally */}
     </main>
   );
 }
-
-const card: React.CSSProperties = {
-  background: "#fafafa",
-  borderRadius: 12,
-  padding: "20px 24px",
-  marginBottom: 20,
-  border: "1px solid #eee",
-};
-const sectionHead: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 600,
-  marginBottom: 12,
-};
