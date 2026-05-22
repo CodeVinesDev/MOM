@@ -1,7 +1,11 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { IParticipant } from "../models/Meeting";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
+
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+});
 
 export interface MomResult {
   title: string;
@@ -18,7 +22,9 @@ export interface MomResult {
 
 function safeDate(value?: string | null): string | undefined {
   if (!value) return undefined;
+
   const parsed = new Date(value);
+
   return Number.isNaN(parsed.getTime())
     ? undefined
     : parsed.toISOString().split("T")[0];
@@ -26,9 +32,11 @@ function safeDate(value?: string | null): string | undefined {
 
 function findEmailForName(name: string, participants: IParticipant[]): string {
   const normalized = name.trim().toLowerCase();
+
   const match = participants.find(
     (participant) => participant.name.trim().toLowerCase() === normalized,
   );
+
   return match?.email ?? "";
 }
 
@@ -36,42 +44,91 @@ export async function generateMOM(
   transcript: string,
   participants: IParticipant[],
 ): Promise<MomResult> {
+  console.log(process.env.GEMINI_API_KEY);
   const participantList = participants
     .map((p) => `${p.name} <${p.email}>`)
     .join(", ");
 
-  const prompt = `You are a professional meeting secretary. Analyse this meeting transcript and return a JSON object only — no markdown, no explanation.\n\nParticipants: ${participantList}\n\nTranscript:\n${transcript}\n\nReturn exactly this JSON shape:\n{\n  "title": "short meeting title",\n  "summary": "3-5 sentence executive summary",\n  "decisions": ["decision 1", "decision 2"],\n  "actionItems": [\n    {\n      "task": "what needs to be done",\n      "assignee": "Person Name",\n      "assigneeEmail": "email@example.com",\n      "dueDate": "YYYY-MM-DD or null"\n    }\n  ],\n  "tags": ["tag1", "tag2"]\n}`;
+  const prompt = `
+You are a professional meeting secretary.
 
-  const response = await client.completions.create({
-    model: "claude-2",
-    max_tokens_to_sample: 2048,
-    prompt: `\n\nHuman: ${prompt}\n\nAssistant:`,
-    stop_sequences: ["\n\nHuman:"],
-  });
+Analyse this meeting transcript and return ONLY valid JSON.
 
-  const raw = response.completion.trim();
-  let result: MomResult;
+Do not return markdown.
+Do not use triple backticks.
+Do not add explanation text.
+
+Participants:
+${participantList}
+
+Transcript:
+${transcript}
+
+Return exactly this JSON shape:
+
+{
+  "title": "short meeting title",
+  "summary": "3-5 sentence executive summary",
+  "decisions": ["decision 1", "decision 2"],
+  "actionItems": [
+    {
+      "task": "what needs to be done",
+      "assignee": "Person Name",
+      "assigneeEmail": "email@example.com",
+      "dueDate": "YYYY-MM-DD or null"
+    }
+  ],
+  "tags": ["tag1", "tag2"]
+}
+`;
+
   try {
-    result = JSON.parse(raw) as MomResult;
-  } catch (error) {
-    throw new Error(
-      "Unable to parse AI response. Please verify transcript content and try again.",
-    );
-  }
+    const result = await model.generateContent(prompt);
 
-  return {
-    title: result.title || "Team meeting summary",
-    summary: result.summary || "No summary was generated.",
-    decisions: Array.isArray(result.decisions) ? result.decisions : [],
-    tags: Array.isArray(result.tags) ? result.tags : [],
-    actionItems: Array.isArray(result.actionItems)
-      ? result.actionItems.map((item) => ({
-          task: item.task || "Update task description",
-          assignee: item.assignee || "Unassigned",
-          assigneeEmail:
-            item.assigneeEmail || findEmailForName(item.assignee, participants),
-          dueDate: safeDate(item.dueDate) ?? null,
-        }))
-      : [],
-  };
+    const response = result.response.text().trim();
+
+    // remove markdown if Gemini returns it
+    const cleaned = response
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    let parsed: MomResult;
+
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (error) {
+      console.error("JSON Parse Error:", cleaned);
+
+      throw new Error("Unable to parse AI response. Please try again.");
+    }
+
+    return {
+      title: parsed.title || "Team meeting summary",
+
+      summary: parsed.summary || "No summary was generated.",
+
+      decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
+
+      tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+
+      actionItems: Array.isArray(parsed.actionItems)
+        ? parsed.actionItems.map((item) => ({
+            task: item.task || "Update task description",
+
+            assignee: item.assignee || "Unassigned",
+
+            assigneeEmail:
+              item.assigneeEmail ||
+              findEmailForName(item.assignee, participants),
+
+            dueDate: safeDate(item.dueDate) ?? null,
+          }))
+        : [],
+    };
+  } catch (error) {
+    console.error("Gemini Error:", error);
+
+    throw new Error("Failed to generate meeting summary");
+  }
 }
